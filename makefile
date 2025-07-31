@@ -6,6 +6,7 @@ f90comp = gfortran
 options =  -fdefault-real-8 -g -O3 -fopenmp -fbounds-check -ffpe-trap=invalid -ffpe-trap=overflow -fimplicit-none # -ffpe-trap=denormal -Wall -Wcompare-reals
 options_mp = -O3 -g
 options_mp_fast = -Ofast -g
+mpfun_dir = mpfun20-fort-v32-var2
 
 dsolve: $(objects) $(kv_ints_obj) $(mpfun_obj)
 	$(f90comp) -o dsolve $(options) $(objects) $(kv_ints_obj) $(mpfun_obj)
@@ -16,62 +17,62 @@ param_mod.mod: param_mod.o param_mod.f90
 param_mod.o: param_mod.f90
 	$(f90comp) -c $(options) param_mod.f90
 
-mpmodule.mod: mpmodule.o mpmodule.f90
-	$(f90comp) -c $(options_mp_fast) mpmodule.f90
+mpmodule.mod: mpmodule.o ./$(mpfun_dir)/mpmodule.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpmodule.f90
 
-mpmodule.o: mpmodule.f90
-	$(f90comp) -c $(options_mp_fast) mpmodule.f90
+mpmodule.o: ./$(mpfun_dir)/mpmodule.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpmodule.f90
 
-mpfuna.mod: mpfuna.o mpfuna.f90
-	$(f90comp) -c $(options_mp_fast) mpfuna.f90
+mpfuna.mod: mpfuna.o ./$(mpfun_dir)/mpfuna.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfuna.f90
 
-mpfuna.o: mpfuna.f90
-	$(f90comp) -c $(options_mp_fast) mpfuna.f90
+mpfuna.o: ./$(mpfun_dir)/mpfuna.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfuna.f90
 
-mpfunb.mod: mpmask13.o mpfunb.o mpfunb.f90
-	$(f90comp) -c $(options_mp_fast) mpfunb.f90
+mpfunb.mod: mpmask13.o mpfunb.o ./$(mpfun_dir)/mpfunb.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunb.f90
 
-mpfunb.o: mpfunb.f90
-	$(f90comp) -c $(options_mp_fast) mpfunb.f90
+mpfunb.o: ./$(mpfun_dir)/mpfunb.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunb.f90
 
-mpfunc.mod: mpfunc.o mpfunc.f90
-	$(f90comp) -c $(options_mp_fast) mpfunc.f90
+mpfunc.mod: mpfunc.o ./$(mpfun_dir)/mpfunc.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunc.f90
 
-mpfunc.o: mpfunc.f90
-	$(f90comp) -c $(options_mp_fast) mpfunc.f90
+mpfunc.o: ./$(mpfun_dir)/mpfunc.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunc.f90
 
-mpfund.mod: mpfund.o mpfund.f90
-	$(f90comp) -c $(options_mp_fast) mpfund.f90
+mpfund.mod: mpfund.o ./$(mpfun_dir)/mpfund.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfund.f90
 
-mpfund.o: mpfund.f90
-	$(f90comp) -c $(options_mp_fast) mpfund.f90
+mpfund.o: ./$(mpfun_dir)/mpfund.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfund.f90
 
-mpfune.mod: mpfune.o mpfune.f90
-	$(f90comp) -c $(options_mp_fast) mpfune.f90
+mpfune.mod: mpfune.o ./$(mpfun_dir)/mpfune.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfune.f90
 
-mpfune.o: mpfune.f90
-	$(f90comp) -c $(options_mp_fast) mpfune.f90
+mpfune.o: ./$(mpfun_dir)/mpfune.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfune.f90
 
-mpfunf.mod: mpfunf.o mpfunf.f90
-	$(f90comp) -c $(options_mp_fast) mpfunf.f90
+mpfunf.mod: mpfunf.o ./$(mpfun_dir)/mpfunf.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunf.f90
 
-mpfunf.o: mpfunf.f90
-	$(f90comp) -c $(options_mp_fast) mpfunf.f90
+mpfunf.o: ./$(mpfun_dir)/mpfunf.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunf.f90
 
-mpfung.mod: mpfung2.o mpfung2.f90
-	$(f90comp) -c $(options_mp_fast) mpfung2.f90
+mpfung.mod: mpfung2.o ./$(mpfun_dir)/mpfung2.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfung2.f90
 
-mpfung2.o: mpfung2.f90
-	$(f90comp) -c $(options_mp_fast) mpfung2.f90
+mpfung2.o: ./$(mpfun_dir)/mpfung2.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfung2.f90
 
-mpfunh.mod: mpfunh2.o mpfunh2.f90
-	$(f90comp) -c $(options_mp_fast) mpfunh2.f90
+mpfunh.mod: mpfunh2.o ./$(mpfun_dir)/mpfunh2.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunh2.f90
 
-mpfunh2.o: mpfunh2.f90
-	$(f90comp) -c $(options_mp_fast) mpfunh2.f90
+mpfunh2.o: ./$(mpfun_dir)/mpfunh2.f90
+	$(f90comp) -c $(options_mp_fast) ./$(mpfun_dir)/mpfunh2.f90
 
-mpmask13.o: mpmask13.f90
-	$(f90comp) -c $(options_mp) mpmask13.f90
+mpmask13.o: ./$(mpfun_dir)/mpmask13.f90
+	$(f90comp) -c $(options_mp) ./$(mpfun_dir)/mpmask13.f90
 
 main.o: param_mod.mod kv_ints_mod.mod pppack_mod_mp.mod main.f90
 	$(f90comp) -c $(options) main.f90

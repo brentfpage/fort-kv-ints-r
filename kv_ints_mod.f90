@@ -44,13 +44,13 @@
 ! Λ    = ⎛d Re ⎛Λ⁺     ⎞ ╱   ⎞ ⎢       ,
 !  ₁K₊   ⎝     ⎝ (k₁,ω)⎠╱ dω ⎠ ⎢   +
 !                              ⎢ω=ω₁
-! and Λ⁺ is a quantity related to the dialectric constant described in @@.
+! and Λ⁺ is a quantity related to the dialectric constant described in github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf .
 !      K
 !  ,+ 
 ! Λ    has been calculated in main.f90 and is 
 !  ₁K₊
 ! provided as the argument disp_deriv_ik to the subroutine gam2_is_for_ik2 below.
-! the variables k and ω from @@ are referred to in this program as k₁ and ω₁, while the variables k' and ω' from that writeup are referred to as k₂ and ω₂.
+! the variables k and ω from github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf are referred to in this program as k₁ and ω₁, while the variables k' and ω' from that writeup are referred to as k₂ and ω₂.
 
 module kv_ints_mod
     use param_mod, only : i, kv_nwds, sigma_max, lam1_max, lam2_max, lam3_max, q_min, q_max,&
@@ -606,7 +606,7 @@ end subroutine do_case1_ln_k_k0_ints
 ! kroots_helper(1) = 0.0, kroots_helper(2:) = kroots
 ! ᵣk = t_kroots(r)
 ! corr1 : coefficient of a possible split ln correction 
-! k_crossings(m,ir) : k values where a log function involved in the expression of this integral may have a branch cut, see @@
+! k_crossings(m,ir) : k values where a log function involved in the expression of this integral may have a branch cut, see github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf
 ! span_k_crossings(m,ir) : whether the considered interval k=klb->kub spans k_crossings(m,ir) 
 subroutine do_case2_ln_k_k0_ints(int_rational_ln_k_k0, kroots_helper, kb, t_kroots, corr1,&
     k_crossings, span_k_crossings, t3, spank1)
@@ -978,7 +978,7 @@ subroutine compute_tsplcoeffs_and_roots(om2splcoeffs, tsplcoeffs, t_kroots, k1,o
 end subroutine compute_tsplcoeffs_and_roots
 
 
-! determine the k_crossings where the argument of a log function involved in the spence integral may cross a branch cut, see @@
+! determine the k_crossings where the argument of a log function involved in the spence integral may cross a branch cut, see github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf
 subroutine find_cut_crossings(kroots, t_kroots, k_crossings, span_k_crossings, klb, kub)
   implicit none
   type(mp_complex), dimension(:), intent(in) :: kroots, t_kroots

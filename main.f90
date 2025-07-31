@@ -1,5 +1,5 @@
 !> LEOPARD: Initializes the setup, scans through the requested wavenumber interval, computes corresponding frequencies, and prints dispersion relation to output file
-! fort-kv-ints: does part of the computation of the general form of the weak turbulence integral ( eq. (2) in @@ ) , and sums such integrals up into the induced scattering nonlinear growth rate (eq. (1) in @@)
+! fort-kv-ints: calls subroutines from kv_ints_mod that compute eq. (1) in github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf , which is a nonlinear growth rate attributable to induced scattering 
 program main
   use param_mod
   use kv_ints_mod
@@ -158,9 +158,6 @@ program main
     solution_mp(ik) = mpreald(real(solution(ik)),kv_nwds)
   enddo
   call make_interp_spline_quad_mp(krange_mp, solution_mp, om2splcoeffs_nk, kknots)
-
-  do iarb=1,narb
-  enddo
 
   gam2_is = mpcmplx((0.0,0.0),kv_nwds)
 
