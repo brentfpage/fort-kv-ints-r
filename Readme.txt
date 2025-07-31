@@ -1,6 +1,6 @@
 fort-kv-ints is an add-on to LEOPARD (www.github.com/pastfalk/LEOPARD) that partially computes the nonlinear growth rate of the weak turbulence theory for parallel-propagating electromagnetic waves in magnetized plasma.
 The complete nonlinear growth rate includes contributions from three-wave interactions and induced scattering, and fort-kv-ints computes part of the induced scattering contribution.
-Some details of the computation can be found in github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf .
+Some details of the computation can be found in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf .
 
 File descriptions:
     The following files in /fort_kv_ints_r are revised versions of files from LEOPARD
@@ -21,7 +21,7 @@ File descriptions:
             -- fort-kv-ints parameters have been appended to the new param_mod.f90
             -- In the /fort_kv_ints_r version of int_para_mpfun.f90, the arguments to the mp type constructors have been changed.
             -- rh_disp_val.f90 in /fort_kv_ints_r uses code from the LEOPARD files disp_det.f90 and integrator.f90 to compute the dialectric constant for right-handed parallel-propagating waves
-            -- /distribution/distribution1.dat in /fort_kv_ints_r is an electron vdf derived from measurements by the ARTEMIS electrostatic analyzer during a whistler wave event.  For details, see github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf .
+            -- /distribution/distribution1.dat in /fort_kv_ints_r is an electron vdf derived from measurements by the ARTEMIS electrostatic analyzer during a whistler wave event.  For details, see www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf .
             -- compilation blocks for fort-kv-ints files have been appended to the new makefile
 
     New files in /fort_kv_ints_r:
@@ -44,7 +44,7 @@ Building the program:
         - read_distr.f90
         - spline_interpol.f90
         - Z_func.f90
-    On the command line, navigate to this directory (/fort_kv_ints_r) , type "make" (without quotes), and hit return.  The program should then go through a compilation process.  If the build is successful, the command "./dsolve" will start the program.  The default input parameters and particle velocity distribution function (vdf) are those that were used in github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf.  If 32 threads are used, this default program run takes about 7 hours.
+    On the command line, navigate to this directory (/fort_kv_ints_r) , type "make" (without quotes), and hit return.  The program should then go through a compilation process.  If the build is successful, the command "./dsolve" will start the program.  The default input parameters and particle velocity distribution function (vdf) are those that were used in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf.  If 32 threads are used, this default program run takes about 7 hours.
 
 
 Scope:
