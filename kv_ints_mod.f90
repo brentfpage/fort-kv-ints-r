@@ -44,13 +44,13 @@
 ! Λ    = ⎛d Re ⎛Λ⁺     ⎞ ╱   ⎞ ⎢       ,
 !  ₁K₊   ⎝     ⎝ (k₁,ω)⎠╱ dω ⎠ ⎢   +
 !                              ⎢ω=ω₁
-! and Λ⁺ is a quantity related to the dialectric constant described in github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf .
+! and Λ⁺ is a quantity related to the dialectric constant described in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf .
 !      K
 !  ,+ 
 ! Λ    has been calculated in main.f90 and is 
 !  ₁K₊
 ! provided as the argument disp_deriv_ik to the subroutine gam2_is_for_ik2 below.
-! the variables k and ω from github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf are referred to in this program as k₁ and ω₁, while the variables k' and ω' from that writeup are referred to as k₂ and ω₂.
+! the variables k and ω from www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf are referred to in this program as k₁ and ω₁, while the variables k' and ω' from that writeup are referred to as k₂ and ω₂.
 
 module kv_ints_mod
     use param_mod, only : i, kv_nwds, sigma_max, lam1_max, lam2_max, lam3_max, q_min, q_max,&
@@ -236,7 +236,7 @@ subroutine int_driver(kub,klb,kroots,t123_int,int_kq_roots_kub,int_kq_roots_klb,
 ! with the integral in the subroutine header having been computed for (λ₁>0, λ₂=0, λ₃=0), (λ₁=0, λ₂>0, λ₃=0), and (λ₁=0, λ₂=0, λ₃>0),
 ! the code below computes the general (λ₁>0, λ₂>0, λ₃>0) cases.
 
-! the quadratic polynomial g(k)≡pfdsplcoeffs(ubound(pfdsplcoeffs,1)) * (k-₂k) * (k-₃k) gets introduced by partial fraction decomposition operations applied to 1/(t₁ t₂) , 1/(t₂ t₃) , and 1/(t₃ t₁) . This specific expression for g(k) applies for the non-spank1 case.  In the spank1 case, k₁ is a root of g(k)=pfdsplcoeffs(ubound(pfdsplcoeffs,1)-1) * (k-k₁) * (k-₂k), which introduces the need to use if(spank1) ... else ... blocks extensively, 
+! the quadratic polynomial h(k)≡pfdsplcoeffs(ubound(pfdsplcoeffs,1)) * (k-₂k) * (k-₃k) gets introduced by partial fraction decomposition operations applied to 1/(t₁ t₂) , 1/(t₂ t₃) , and 1/(t₃ t₁) . This specific expression for h(k) applies for the non-spank1 case.  In the spank1 case, k₁ is a root of h(k)=pfdsplcoeffs(ubound(pfdsplcoeffs,1)-1) * (k-k₁) * (k-₂k), which introduces the need to use if(spank1) ... else ... blocks extensively, 
 
     do lam1=1,t123_lam1_max
       do lam2=1,t123_lam2_max
@@ -606,7 +606,7 @@ end subroutine do_case1_ln_k_k0_ints
 ! kroots_helper(1) = 0.0, kroots_helper(2:) = kroots
 ! ᵣk = t_kroots(r)
 ! corr1 : coefficient of a possible split ln correction 
-! k_crossings(m,ir) : k values where a log function involved in the expression of this integral may have a branch cut, see github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf
+! k_crossings(m,ir) : k values where a log function involved in the expression of this integral may have a branch cut, see www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf
 ! span_k_crossings(m,ir) : whether the considered interval k=klb->kub spans k_crossings(m,ir) 
 subroutine do_case2_ln_k_k0_ints(int_rational_ln_k_k0, kroots_helper, kb, t_kroots, corr1,&
     k_crossings, span_k_crossings, t3, spank1)
@@ -664,11 +664,15 @@ subroutine do_case2_ln_k_k0_ints(int_rational_ln_k_k0, kroots_helper, kb, t_kroo
       if(corr2.ne.0) then
         spence_arg_at_k_crossing = (t_kroots(ir)-k_crossings(m,ir))/(t_kroots(ir)-kroots_helper(m))
         if (span_k_crossings(m,ir).and.(mpreal(spence_arg_at_k_crossing,kv_nwds).lt.mpreal(0.0,kv_nwds))) then
-          
-        int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) = &
-          int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) &
-          + mpcmplx(2*i*corr2,kv_nwds)* mppic*&
-          (logw(kb-kroots_helper(m)) - logw(k_crossings(m,ir)-kroots_helper(m)))
+          int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) = &
+            int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) &
+            + mpcmplx(2*i*corr2,kv_nwds)* mppic*&
+            (logw(kb-kroots_helper(m)) - logw(k_crossings(m,ir)-kroots_helper(m)))
+
+          int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) = &
+            int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) &
+            + mpcmplx(2*i*corr2,kv_nwds)* mppic* &
+            logw(abs(mpreal(1.0,kv_nwds)-spence_arg_at_k_crossing))
         else
           int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) = &
             int_rational_ln_k_k0(ids2(1),ids2(2),ids2(3),ids2(4)) &
@@ -727,7 +731,7 @@ end subroutine do_case3_ln_k_k0_ints
 !       │ │(k-ₘk)ᵖ⁽ᵐ⁾
 !       m=1
 ! where ₘk=kroots(m).  Minor exceptions to this description apply in the spank1 case.
-! This function also computes ₂k and ₃k , which are roots of a quadratic polynomial g(k₂) = k₂*ω₁ - k₁*ω₂ + k₁- k₂ that is introduced by application of partial fraction decomposition operations w.r.t v_parallel to the integral described in the header of int_driver.
+! This function also computes ₂k and ₃k , which are roots of a quadratic polynomial h(k₂) = k₂*ω₁ - k₁*ω₂ + k₁- k₂ that is introduced by application of partial fraction decomposition operations w.r.t v_parallel to the integral described in the header of int_driver.
 ! In the spank1 case, k1=₁k is one of the roots of this polynomial, so the integral above is only computed for two total roots.
 subroutine k_int_driver(kub,klb,kroots,int_kq_roots_kub,int_kq_roots_klb,&
     k1,om1,om2splcoeffs,pfdsplcoeffs,spank1)
@@ -743,10 +747,10 @@ subroutine k_int_driver(kub,klb,kroots,int_kq_roots_kub,int_kq_roots_klb,&
     type(mp_real) :: sqrt_arg
     type(mp_complex), dimension(size(kroots)+1) :: kroots_helper
 
-! pfdsplcoeffs contains the spline coefficients of g(k₂) = k₂*ω₁ - k₁*ω₂ + k₁ - k₂, where
+! pfdsplcoeffs contains the spline coefficients of h(k₂) = k₂*ω₁ - k₁*ω₂ + k₁ - k₂, where
 ! ω₂ = om2splcoeffs(1) + om2splcoeffs(2) * k₂ + om2splcoeffs(3) * pow(k₂, 2) .
-! If the k integral bounds span k1, i.e., klb < k1 < kub, then k1 is a root of g(k₂) .
-! In this case, (k₂ - k₁) gets factored out of g(k₂) .
+! If the k integral bounds span k1, i.e., klb < k1 < kub, then k1 is a root of h(k₂) .
+! In this case, (k₂ - k₁) gets factored out of h(k₂) .
         if (spank1) then
           pfdsplcoeffs(1) = om1 - k1*om2splcoeffs(2)-k1**2*om2splcoeffs(3) - 1.0 ! k^0 term
           pfdsplcoeffs(2) = -k1*om2splcoeffs(3) ! k^1 term
@@ -978,7 +982,7 @@ subroutine compute_tsplcoeffs_and_roots(om2splcoeffs, tsplcoeffs, t_kroots, k1,o
 end subroutine compute_tsplcoeffs_and_roots
 
 
-! determine the k_crossings where the argument of a log function involved in the spence integral may cross a branch cut, see github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf
+! determine the k_crossings where the argument of a log function involved in the spence integral may cross a branch cut, see www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf
 subroutine find_cut_crossings(kroots, t_kroots, k_crossings, span_k_crossings, klb, kub)
   implicit none
   type(mp_complex), dimension(:), intent(in) :: kroots, t_kroots

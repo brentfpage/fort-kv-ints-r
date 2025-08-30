@@ -1,5 +1,5 @@
 !> LEOPARD: Initializes the setup, scans through the requested wavenumber interval, computes corresponding frequencies, and prints dispersion relation to output file
-! fort-kv-ints: calls subroutines from kv_ints_mod that compute eq. (1) in github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf , which is a nonlinear growth rate attributable to induced scattering 
+! fort-kv-ints: calls subroutines from kv_ints_mod that compute eq. (1) in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf , which is a nonlinear growth rate attributable to induced scattering 
 program main
   use param_mod
   use kv_ints_mod

@@ -4,7 +4,7 @@ Some details of the computation can be found in www.github.com/brentfpage/fort-k
 
 File descriptions:
     The following files in /fort_kv_ints_r are revised versions of files from LEOPARD
-        - all mp*f90 files (mpfuna.f90 mpfunbq.f90 mpfunc.f90 mpfund.f90 mpfune.f90 mpfunf.f90 mpfungq2.f90 mpmodule.f90)
+        - all /mpfun20-fort-v32-var2/mp*f90 files (mpfuna.f90 mpfunbq.f90 mpfunc.f90 mpfund.f90 mpfune.f90 mpfunf.f90 mpfungq2.f90 mpmodule.f90)
         - main.f90
         - muller.f90
         - param_mod.f90
@@ -15,7 +15,7 @@ File descriptions:
         - makefile
 
         Descriptions of modifications:
-            -- The mp*f90 files in /fort_kv_ints_r come from a more recent version (MPFUN20-Fort (v32) by David H. Bailey) of the arbitrary precision arithmetic package used in LEOPARD. 
+            -- The mp*f90 files in /fort_kv_ints_r/mpfun20-fort-v32-var2 come from a more recent version (MPFUN20-Fort (v32) by David H. Bailey) of the arbitrary precision arithmetic package used in LEOPARD. 
             -- The new main.f90 retains much of the same content as in /LEOPARD but now also drives the computation of the induced scattering growth rate.
             -- Relative to the LEOPARD version, muller.f90 in /fort_kv_ints_r features the replacement 'disp_det'->'rh_disp_val'.
             -- fort-kv-ints parameters have been appended to the new param_mod.f90
