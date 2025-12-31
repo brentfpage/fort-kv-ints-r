@@ -14,6 +14,7 @@ program main
   real, allocatable, dimension (:) :: krange
   type(mp_real), allocatable, dimension(:) :: kknots
   type(mp_real), allocatable, dimension(:) :: krange_mp, solution_mp
+  type(mp_real), allocatable, dimension(:) :: sol_at_kknots
   complex, allocatable, dimension (:) :: solution
 
   real, allocatable, dimension(:,:,:,:,:) :: splcoeff1, splcoeff2
@@ -29,13 +30,12 @@ program main
 
   type(mp_complex), allocatable, dimension (:,:,:) :: gam2_is
 
-  type(mp_complex), allocatable, dimension(:,:,:,:) :: v_int_vub_lam1
-  type(mp_complex), allocatable, dimension(:,:,:,:) :: v_int_vlb_lam1
+  type(mp_complex), allocatable, dimension(:,:,:,:) :: v_int_lam1_diff
 
   real :: disp_deriv
   external :: disp_deriv
-  integer, dimension(416,15) :: all_int_params
-  integer :: k_pow
+  integer, dimension(416,15) :: all_int_params_standard
+  integer, dimension(653,15) :: all_int_params_spank1
   complex :: rh_disp_val
   external rh_disp_val
   type(mp_complex) :: t1_root
@@ -44,8 +44,8 @@ program main
   type(mp_real), dimension(3) :: om2splcoeffs ! pfdsplcoeffs
   type(mp_real), allocatable, dimension(:,:) :: om2splcoeffs_nk
 
-  real :: tp1, tp2
-  integer :: kpow
+  integer :: k_pow
+  logical :: spank1
 
   type(mp_real) :: mppic
 
@@ -57,7 +57,6 @@ program main
   logical, parameter :: negk = .false.
 
   mppic=mppi(kv_nwds)
-
 
   open(unit=7,status='unknown',file='omega.dat')
 
@@ -71,11 +70,22 @@ program main
   call read_distr
   write(*,*) '...done.'
 
-
+  ! the headers of gam2_is_for_ik2 and sum_gam2_over_ints_and_vperp in kv_ints_mod.f90 describe the contents of these integral
+  ! parameter text files.
   write(*,*) 'Read integral params'
-  open(unit=72,status='old',file='all_int_params.txt')
-  do i_int=1,size(all_int_params, 1)
-    read(72,*) all_int_params(i_int,:)
+  open(unit=72,status='old',file='all_int_params_standard.txt')
+  do i_int=1,size(all_int_params_standard, 1)
+    read(72,*) all_int_params_standard(i_int,:)
+  enddo
+  close(72)
+  ! in the spank1 interval, (k2-k1) can be factored out of the denominator, t₃ = ω₁–ω₂ - v(k₁-k₂) + i*eps, of the quantity
+  ! g⁰_{₁K₊-₂K₊} appearing in the expression in the header of kv_ints_mod.f90.  Also, after a lot of algebra, (k2-k1) can be
+  ! factored out of the inner bracketed term in that expression.  The two factors of (k2-k1) then cancel, which is important because
+  ! otherwise the integral over t₃ would be undefined in some circumstances.  The process for generating the integral list
+  ! all_int_params_spank1.txt, referenced below, included pulling out and cancelling these factors of (k2-k1).
+  open(unit=72,status='old',file='all_int_params_spank1.txt')
+  do i_int=1,size(all_int_params_spank1, 1)
+    read(72,*) all_int_params_spank1(i_int,:)
   enddo
   close(72)
   write(*,*) '...done'
@@ -83,9 +93,10 @@ program main
   allocate(krange(nk),solution(nk),Bksq(nk))
   allocate(om2splcoeffs_nk(3,nk))
   allocate(kknots(nk-1))
+  allocate(sol_at_kknots(nk-1))
   allocate(krange_mp(nk),solution_mp(nk))
   allocate(disp_derivs(nk))
-  allocate(gam2_is(nk-1,nk,0:3))
+  allocate(gam2_is(nk-1,nk,0:2))
   dk=(kend-kstart)/(nk-1.0)
   do ik=1,nk
      krange(ik)=kstart+(ik-1)*dk
@@ -93,15 +104,13 @@ program main
 
   allocate(splcoeff1(npara_max-1,nperp_max-1,4,3,narb))
   allocate(splcoeff2(npara_max-1,nperp_max-1,4,3,narb))
-  allocate(splcoeff4(npara_max-1,nperp_max-1,6,6,narb))
-  allocate(v_int_vub_lam1(0:n_max,0:lam1_max,npara_max,narb))
-  allocate(v_int_vlb_lam1(0:n_max,0:lam1_max,npara_max,narb))
+  allocate(splcoeff4(npara_max-1,nperp_max-1,f_spl_degr,f_spl_degr,narb))
+  allocate(v_int_lam1_diff(0:n_max,0:lam1_max,npara_max,narb))
 
   do iarb=1,narb
      call get_splinecoeff(iarb,splcoeff1(:,:,:,:,iarb),splcoeff2(:,:,:,:,iarb))
-     call make_interp_spline_2d_nak_mp(iarb,splcoeff4(:,:,:,:,iarb),6)
+     call make_interp_spline_2d_nak_mp(iarb,splcoeff4(:,:,:,:,iarb),f_spl_degr)
   enddo
-
 
   write(*,*) 'Compute the dispersion relation'
   !scan through wavenumber interval
@@ -157,6 +166,7 @@ program main
     krange_mp(ik) = mpreald(krange(ik),kv_nwds)
     solution_mp(ik) = mpreald(real(solution(ik)),kv_nwds)
   enddo
+
   call make_interp_spline_quad_mp(krange_mp, solution_mp, om2splcoeffs_nk, kknots)
 
   gam2_is = mpcmplx((0.0,0.0),kv_nwds)
@@ -172,8 +182,7 @@ program main
     k1=krange_mp(ik)
     om1=solution_mp(ik)
 
-    v_int_vlb_lam1 = mpcmplx(cmplx(0.0,0.0),kv_nwds)
-    v_int_vub_lam1 = mpcmplx(cmplx(0.0,0.0),kv_nwds)
+    v_int_lam1_diff = mpcmplx(cmplx(0.0,0.0),kv_nwds)
 
 
 ! compute 
@@ -188,12 +197,15 @@ program main
         vlb = mpreald(vpara(ipara,iarb),kv_nwds)
         vub = mpreald(vpara(ipara+1,iarb),kv_nwds)
         t1_root = (-1.0 + om1 + mpcmplx(i,kv_nwds) * eps)/k1 
-        call do_v_int(t1_root, vub, v_int_vub_lam1(:,:,ipara,iarb))
-        call do_v_int(t1_root, vlb, v_int_vlb_lam1(:,:,ipara,iarb))
+        v_int_lam1_diff(:,:,ipara,iarb) = reshape(flatsubtract(&
+          do_v_int(t1_root,vub),&
+          do_v_int(t1_root,vlb),&
+          size(v_int_lam1_diff(:,:,ipara,iarb))),&
+          shape(v_int_lam1_diff(:,:,ipara,iarb)))
       enddo
     enddo
 
-    !$omp parallel do private(ik2,klb,kub,om2splcoeffs,kpow)&
+    !$omp parallel do private(ik2,klb,kub,om2splcoeffs,k_pow,spank1)&
     !$omp shared(gam2_is)
     do ik2=1,nk-2
 
@@ -205,20 +217,30 @@ program main
         kub=kknots(ik2+1)
       endif
 
+      if((klb.lt.k1).and.(kub.gt.k1)) then 
+        spank1 = .true.
+      else
+        spank1 = .false.
+      endif
+
       om2splcoeffs(:) = om2splcoeffs_nk(:,ik2)
       if(negk) then
         om2splcoeffs(2) = -om2splcoeffs(2)
       endif
 
-      call gam2_is_for_ik2(om1,k1,splcoeff4,om2splcoeffs,all_int_params,&
-        gam2_is(ik,ik2,:),klb,kub,v_int_vub_lam1,v_int_vlb_lam1,disp_derivs(ik))
+    if(spank1) then
+      gam2_is(ik,ik2,:) = gam2_is_for_ik2(om1,k1,splcoeff4,om2splcoeffs,all_int_params_spank1,&
+        klb,kub,spank1,v_int_lam1_diff,disp_derivs(ik))
+    else
+      gam2_is(ik,ik2,:) = gam2_is_for_ik2(om1,k1,splcoeff4,om2splcoeffs,all_int_params_standard,&
+        klb,kub,spank1,v_int_lam1_diff,disp_derivs(ik))
+    endif
 
     write(*,*) ' '
     write(*,'(A13,I6,A14,F12.8,A4,F12.8)') '-------------',ik2,'------- k₂ =', qreal(klb),' -->',qreal(kub)
-    write(*,'(A18)') 'S(k1,klb,kub,kpow)'
-    do kpow=0,2
-      tp1 = aimag(gam2_is(ik,ik2,kpow))
-      write(*,'(A7,I2,A7,E20.10)') 'kpow =',kpow,':  S = ',tp1
+    write(*,'(A20)') 'S(k1,klb,kub,k_pow)'
+    do k_pow=0,2
+      write(*,'(A7,I2,A7,E27.17)') 'k_pow =',k_pow,':  S = ',qreal(aimag(gam2_is(ik,ik2,k_pow)))
     enddo
   enddo
   !$omp end parallel do
@@ -228,10 +250,9 @@ program main
   open(unit=7,status='unknown',file='omega2.dat')
   do ik=2,nk-1
     do ik2=1,nk-2
-      do k_pow=0,3
-        tp1 = aimag(gam2_is(ik,ik2,k_pow))
-        tp2 = kknots(ik2)
-        write(7,'(F12.8,F12.8,I5,E20.10)') krange(ik), tp2,k_pow, tp1
+      do k_pow=0,2
+        write(7,'(F12.8,F12.8,I5,E20.10)') krange(ik), qreal(kknots(ik2)) ,k_pow,&
+          qreal(aimag(gam2_is(ik,ik2,k_pow)))
       enddo
     enddo
   enddo
@@ -243,12 +264,13 @@ program main
   deallocate(krange,solution,Bksq)
   deallocate(om2splcoeffs_nk)
   deallocate(kknots)
+  deallocate(sol_at_kknots)
   deallocate(krange_mp,solution_mp)
   deallocate(disp_derivs)
   deallocate(gam2_is)
   deallocate(splcoeff1,splcoeff2)
   deallocate(splcoeff4)
-  deallocate(v_int_vub_lam1,v_int_vlb_lam1)
+  deallocate(v_int_lam1_diff)
 
   deallocate(mu,q)
   deallocate(beta_para,beta_perp,beta_ratio)

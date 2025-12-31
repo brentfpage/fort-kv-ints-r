@@ -26,15 +26,21 @@ real :: eps_error
 
 ! for fort-kv-ints
 integer, parameter :: kv_nwds = 8 ! 108 digits; sets the working precision of fort-kv-ints
-integer, parameter :: sigma_max = 7
+integer, parameter :: sigma_max_spank1 = 6
+integer, parameter :: sigma_max_standard = 4
 integer, parameter :: lam1_max = 4
 integer, parameter :: lam2_max = 3
 integer, parameter :: lam3_max = 2
-integer, parameter :: q_min = -3  
-integer, parameter :: q_max = 7   
-integer, parameter :: q_minn = -13
-integer, parameter :: q_maxx = 36
-integer, parameter :: n_max = 10
+integer, parameter :: q_min = -3
+integer, parameter :: q_max = 7
+
+integer, parameter :: q_minn = -7
+integer, parameter :: q_maxx_spank1 = 22
+integer, parameter :: q_maxx_standard = 19
+integer, parameter :: n_max = 8
+integer, parameter :: vperp_pow_max = 10
+integer, parameter :: kv_root_lam_max = 3 
+integer, parameter :: f_spl_degr = 6 ! quintic spline
 
 
 end module param_mod

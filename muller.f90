@@ -32,9 +32,9 @@ subroutine muller(omega_start,k,sol,splcoeff1,splcoeff2)
   omega(2)=omega_start
   omega(3)=1.001*omega_start
 
-  fx(1)=rh_disp_val(omega(1),k,splcoeff1, splcoeff2)
-  fx(2)=rh_disp_val(omega(2),k,splcoeff1, splcoeff2)
-  fx(3)=rh_disp_val(omega(3),k,splcoeff1, splcoeff2)
+  fx(1)=rh_disp_val(omega(1),k,splcoeff1, splcoeff2)**2
+  fx(2)=rh_disp_val(omega(2),k,splcoeff1, splcoeff2)**2
+  fx(3)=rh_disp_val(omega(3),k,splcoeff1, splcoeff2)**2
 
   !perform Muller iteration
 

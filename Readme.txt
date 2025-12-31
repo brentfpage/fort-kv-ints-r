@@ -44,7 +44,7 @@ Building the program:
         - read_distr.f90
         - spline_interpol.f90
         - Z_func.f90
-    On the command line, navigate to this directory (/fort_kv_ints_r) , type "make" (without quotes), and hit return.  The program should then go through a compilation process.  If the build is successful, the command "./dsolve" will start the program.  The default input parameters and particle velocity distribution function (vdf) are those that were used in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf.  If 32 threads are used, this default program run takes about 7 hours.
+    On the command line, navigate to this directory (/fort_kv_ints_r) , type "make" (without quotes), and hit return.  The program should then go through a compilation process.  If the build is successful, the command "./dsolve" will start the program.  The default input parameters and particle velocity distribution function (vdf) are those that were used in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf.  If 32 threads are used, this default program run takes about 1 hour.
 
 
 Scope:
