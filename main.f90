@@ -28,9 +28,9 @@ program main
 
   real, allocatable, dimension (:) :: Bksq
 
-  type(mp_complex), allocatable, dimension (:,:,:) :: gam2_is
+  type(mp_complex), allocatable, dimension (:,:,:) :: gam2_is_wccs
 
-  type(mp_complex), allocatable, dimension(:,:,:,:) :: v_int_lam1_diff
+  type(mp_complex), allocatable, dimension(:,:,:) :: v_int_lam1_diff
 
   real :: disp_deriv
   external :: disp_deriv
@@ -40,12 +40,10 @@ program main
   external rh_disp_val
   type(mp_complex) :: t1_root
 
-  type(mp_real) :: klb, kub, k1, om1, vub, vlb
-  type(mp_real), dimension(3) :: om2splcoeffs ! pfdsplcoeffs
-  type(mp_real), allocatable, dimension(:,:) :: om2splcoeffs_nk
+  type(mp_real) :: k1, om1, vub, vlb
+  type(mp_real), allocatable, dimension(:,:) :: om2splcoeffs_nk, pfdsplcoeffs_nk
 
   integer :: k_pow
-  logical :: spank1
 
   type(mp_real) :: mppic
 
@@ -55,6 +53,13 @@ program main
   ! if waves only propagate only along one direction, then the input distribution can be 
   ! configured such that this direction is +k, and negk should then be set to .false.
   logical, parameter :: negk = .false.
+  integer :: spank1_ik2
+
+  type(mp_real), allocatable, dimension(:,:) :: Ivpe
+  type(mp_complex), allocatable, dimension(:,:,:,:,:) :: int_kq_roots_diff
+  type(mp_complex), allocatable, dimension(:,:,:,:) :: int_kq_roots_diff_spank1
+  type(mp_complex), allocatable, dimension(:,:) :: kroots_nk
+  integer :: iperp
 
   mppic=mppi(kv_nwds)
 
@@ -70,7 +75,7 @@ program main
   call read_distr
   write(*,*) '...done.'
 
-  ! the headers of gam2_is_for_ik2 and sum_gam2_over_ints_and_vperp in kv_ints_mod.f90 describe the contents of these integral
+  ! the headers of gam2_is_wccs_for_ik and sum_gam2_is_wccs_over_ints_and_vperp in kv_ints_mod.f90 describe the contents of these integral
   ! parameter text files.
   write(*,*) 'Read integral params'
   open(unit=72,status='old',file='all_int_params_standard.txt')
@@ -91,12 +96,12 @@ program main
   write(*,*) '...done'
   
   allocate(krange(nk),solution(nk),Bksq(nk))
-  allocate(om2splcoeffs_nk(3,nk))
+  allocate(om2splcoeffs_nk(3,nk),pfdsplcoeffs_nk(3,nk), kroots_nk(3,nk))
   allocate(kknots(nk-1))
   allocate(sol_at_kknots(nk-1))
   allocate(krange_mp(nk),solution_mp(nk))
   allocate(disp_derivs(nk))
-  allocate(gam2_is(nk-1,nk,0:2))
+  allocate(gam2_is_wccs(nk-1,nk-2,0:2))
   dk=(kend-kstart)/(nk-1.0)
   do ik=1,nk
      krange(ik)=kstart+(ik-1)*dk
@@ -105,7 +110,21 @@ program main
   allocate(splcoeff1(npara_max-1,nperp_max-1,4,3,narb))
   allocate(splcoeff2(npara_max-1,nperp_max-1,4,3,narb))
   allocate(splcoeff4(npara_max-1,nperp_max-1,f_spl_degr,f_spl_degr,narb))
-  allocate(v_int_lam1_diff(0:n_max,0:lam1_max,npara_max,narb))
+  allocate(v_int_lam1_diff(0:n_max,0:lam1_max,npara_max))
+
+  allocate(Ivpe(0:vperp_pow_max,nperp_max))
+  allocate(int_kq_roots_diff(&
+    nk-2,&
+    q_minn:q_maxx_standard,&
+    0:n_max+lam3_max,&
+    0:sigma_max_standard,&
+    0:sigma_max_standard))
+  allocate(int_kq_roots_diff_spank1(&
+    q_minn:q_maxx_spank1,&
+    0:n_max+lam3_max,&
+    0:sigma_max_spank1,&
+    0:sigma_max_spank1))
+
 
   do iarb=1,narb
      call get_splinecoeff(iarb,splcoeff1(:,:,:,:,iarb),splcoeff2(:,:,:,:,iarb))
@@ -168,13 +187,23 @@ program main
   enddo
 
   call make_interp_spline_quad_mp(krange_mp, solution_mp, om2splcoeffs_nk, kknots)
+  if(negk) then
+    do ik2=1,nk-2
+      om2splcoeffs_nk(2,ik2) = -om2splcoeffs_nk(2,ik2)
+    enddo
+    do ik2=1,nk-1
+      kknots(ik2) = -kknots(ik2)
+    enddo
+    kknots(:) = kknots(size(kknots):1:-1)
+    om2splcoeffs_nk(:,1:nk-2) = om2splcoeffs_nk(:,nk-2:1:-1)
+  endif
 
-  gam2_is = mpcmplx((0.0,0.0),kv_nwds)
+  gam2_is_wccs = mpcmplx((0.0,0.0),kv_nwds)
 
   start = omp_get_wtime()
   write(*,*) ' '
   write(*,*) 'Compute induced scattering wave coupling coefficients'
- call set_eps(1e-100)
+ call set_eps(1.e-100)
  do ik=2,nk-1
   write(*,*) ' '
   write(*,'(A7,I6,A13,F12.8)') '-------',ik,'------- k₁=', krange(ik)
@@ -184,7 +213,6 @@ program main
 
     v_int_lam1_diff = mpcmplx(cmplx(0.0,0.0),kv_nwds)
 
-
 ! compute 
 !  vb
 ! ⌠       vⁿ
@@ -192,67 +220,73 @@ program main
 ! ⌡          λ₁
 !      (v-vₒ)
 ! for each bound vb in the parallel velocity grid.  Here, vₒ=(-1+ω₁+i*eps)/k₁, i.e., vₒ is a zero of the denominator term t₁ = ω₁ - v*k₁ - 1 + i*eps .
-    do iarb=1,narb
-      do ipara=1,npara(iarb)-1
-        vlb = mpreald(vpara(ipara,iarb),kv_nwds)
-        vub = mpreald(vpara(ipara+1,iarb),kv_nwds)
-        t1_root = (-1.0 + om1 + mpcmplx(i,kv_nwds) * eps)/k1 
-        v_int_lam1_diff(:,:,ipara,iarb) = reshape(flatsubtract(&
-          do_v_int(t1_root,vub),&
-          do_v_int(t1_root,vlb),&
-          size(v_int_lam1_diff(:,:,ipara,iarb))),&
-          shape(v_int_lam1_diff(:,:,ipara,iarb)))
+    iarb=1 ! only narb=1 is supported at present
+    do ipara=1,npara(iarb)-1
+      vlb = mpreald(vpara(ipara,iarb),kv_nwds)
+      vub = mpreald(vpara(ipara+1,iarb),kv_nwds)
+      t1_root = (-1.0 + om1 + mpcmplx(i,kv_nwds) * eps)/k1 
+      v_int_lam1_diff(:,:,ipara) = reshape(flatsubtract(&
+        do_v_int(t1_root,vub),&
+        do_v_int(t1_root,vlb),&
+        size(v_int_lam1_diff(:,:,ipara))),&
+        shape(v_int_lam1_diff(:,:,ipara)))
+    enddo
+    do iperp=1,nperp(iarb)
+      do i_int=0,vperp_pow_max
+        Ivpe(i_int,iperp) = mpreald(vperp(iperp,iarb),kv_nwds)**(i_int+1)/(i_int+1)
       enddo
     enddo
 
-    !$omp parallel do private(ik2,klb,kub,om2splcoeffs,k_pow,spank1)&
-    !$omp shared(gam2_is)
     do ik2=1,nk-2
-
-      if(negk) then
-        klb=-kknots(ik2+1)
-        kub=-kknots(ik2)
-      else
-        klb=kknots(ik2)
-        kub=kknots(ik2+1)
+      if((kknots(ik2).lt.k1).and.(kknots(ik2+1).gt.k1)) then 
+        spank1_ik2 = ik2
+        exit
       endif
-
-      if((klb.lt.k1).and.(kub.gt.k1)) then 
-        spank1 = .true.
-      else
-        spank1 = .false.
-      endif
-
-      om2splcoeffs(:) = om2splcoeffs_nk(:,ik2)
-      if(negk) then
-        om2splcoeffs(2) = -om2splcoeffs(2)
-      endif
-
-    if(spank1) then
-      gam2_is(ik,ik2,:) = gam2_is_for_ik2(om1,k1,splcoeff4,om2splcoeffs,all_int_params_spank1,&
-        klb,kub,spank1,v_int_lam1_diff,disp_derivs(ik))
-    else
-      gam2_is(ik,ik2,:) = gam2_is_for_ik2(om1,k1,splcoeff4,om2splcoeffs,all_int_params_standard,&
-        klb,kub,spank1,v_int_lam1_diff,disp_derivs(ik))
-    endif
-
-    write(*,*) ' '
-    write(*,'(A13,I6,A14,F12.8,A4,F12.8)') '-------------',ik2,'------- k₂ =', qreal(klb),' -->',qreal(kub)
-    write(*,'(A20)') 'S(k1,klb,kub,k_pow)'
-    do k_pow=0,2
-      write(*,'(A7,I2,A7,E27.17)') 'k_pow =',k_pow,':  S = ',qreal(aimag(gam2_is(ik,ik2,k_pow)))
     enddo
-  enddo
-  !$omp end parallel do
+
+    pfdsplcoeffs_nk = compute_pfdsplcoeffs_nk(om2splcoeffs_nk, k1, om1, spank1_ik2)
+    kroots_nk(2:3,:) = compute_pfd_kroots_nk(pfdsplcoeffs_nk, spank1_ik2)
+    kroots_nk(1,:) = k1 * mpcmplx((1.0,0.0), kv_nwds)
+
+    !$omp parallel do private(ik2)
+    do ik2=1,nk-2
+      if(ik2.ne.spank1_ik2) then
+        int_kq_roots_diff(ik2,:,:,:,:) = mpcmplx((0.0,0.0),kv_nwds)
+        int_kq_roots_diff(ik2,:,:,:,:) = integrate_over_v_independent_k_roots(kroots_nk(:,ik2),&
+          kknots(ik2), kknots(ik2+1), .false.)
+      else
+        int_kq_roots_diff_spank1(:,:,:,:) = mpcmplx((0.0,0.0),kv_nwds)
+        int_kq_roots_diff_spank1(:,:,:,:) = integrate_over_v_independent_k_roots(kroots_nk(:,ik2),&
+          kknots(ik2), kknots(ik2+1), .true.)
+      endif
+    enddo
+    !$omp end parallel do
+
+    gam2_is_wccs(ik,:,:) = gam2_is_wccs_for_ik(int_kq_roots_diff, int_kq_roots_diff_spank1, v_int_lam1_diff, Ivpe,&
+      om2splcoeffs_nk, pfdsplcoeffs_nk, splcoeff4, kroots_nk, kknots, vpara(:npara(iarb),iarb), om1, k1,&
+      all_int_params_spank1, all_int_params_standard, spank1_ik2)
+
+    do ik2=1,nk-2
+      do k_pow=0,2
+        gam2_is_wccs(ik,ik2,k_pow) = gam2_is_wccs(ik,ik2,k_pow) * mppic / mpreald(delta**2 * disp_derivs(ik),kv_nwds)
+      enddo
+
+      write(*,*) ' '
+      write(*,'(A13,I6,A14,F12.8,A4,F12.8)') '-------------',ik2,'------- k₂ =', qreal(kknots(ik2)),' -->',qreal(kknots(ik2+1))
+      write(*,'(A20)') 'S(k1,klb,kub,k_pow)'
+      do k_pow=0,2
+        write(*,'(A7,I2,A7,E27.17)') 'k_pow =',k_pow,':  S = ',qreal(aimag(gam2_is_wccs(ik,ik2,k_pow)))
+      enddo
+    enddo
   finish2 = omp_get_wtime()
   write(*,*) '     k₁ time elapsed:', finish2-start2
   enddo
-  open(unit=7,status='unknown',file='omega2.dat')
+  open(unit=7,status='unknown',file='gam2_is_wccs.dat')
   do ik=2,nk-1
     do ik2=1,nk-2
       do k_pow=0,2
         write(7,'(F12.8,F12.8,I5,E20.10)') krange(ik), qreal(kknots(ik2)) ,k_pow,&
-          qreal(aimag(gam2_is(ik,ik2,k_pow)))
+          qreal(aimag(gam2_is_wccs(ik,ik2,k_pow)))
       enddo
     enddo
   enddo
@@ -267,7 +301,7 @@ program main
   deallocate(sol_at_kknots)
   deallocate(krange_mp,solution_mp)
   deallocate(disp_derivs)
-  deallocate(gam2_is)
+  deallocate(gam2_is_wccs)
   deallocate(splcoeff1,splcoeff2)
   deallocate(splcoeff4)
   deallocate(v_int_lam1_diff)

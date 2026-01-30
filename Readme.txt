@@ -44,25 +44,25 @@ Building the program:
         - read_distr.f90
         - spline_interpol.f90
         - Z_func.f90
-    On the command line, navigate to this directory (/fort_kv_ints_r) , type "make" (without quotes), and hit return.  The program should then go through a compilation process.  If the build is successful, the command "./dsolve" will start the program.  The default input parameters and particle velocity distribution function (vdf) are those that were used in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf.  If 32 threads are used, this default program run takes about 1 hour.
+    On the command line, navigate to this directory (/fort_kv_ints_r) , type "make" (without quotes), and hit return.  The program should then go through a compilation process.  If the build is successful, the command "./dsolve" will start the program.  The default input parameters and particle velocity distribution function (vdf) are those that were used in www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf.  Under the current parallelization scheme, up to about 200 threads can be profitably used for this default program run.  For thread counts in this range, the program run time is about 6 hours divided by the thread count, with diminishing returns after 160 threads.
 
 
 Scope:
     The weak turbulence computations in kv_ints_mod.f90 have only been tested for a one-species plasma, but generalizing them for multi-species plasma would not be complicated.  Also, the program currently runs for right-handed waves, but it would be straightforward to adapt rh_disp_val.f90, which computes the dialectric constant, and kv_ints_mod.f90 to make it instead run for left-handed waves.
 
 fort-kv-ints output:
-    The program output is the file 'omega2.dat'.  The columns in this file are
-        k    k'   k_pow    gam2_is(k, k', k_pow)
+    The program output is the file 'gam2_is_wccs.dat'.  The columns in this file are
+        k    k'   k_pow    gam2_is_wccs(k, k', k_pow)
 
     The k grid is specified by the user in input.dat, as described in the LEOPARD Readme.  The k' grid is staggered relative to the k grid.
 
-    For a wave kinetic equation simulation, the magnetic field spectral density should be defined on the k grid and splined.  At present, a degree 2 spline with not-a-knot boundary conditions is a sensible choice.  In python, scipy.interpolate.make_interp_spline(x, y, 2) produces such a spline whose knots are the same as the k' grid values in omega2.dat.
+    For a wave kinetic equation simulation, the magnetic field spectral density should be defined on the k grid and splined.  At present, a degree 2 spline with not-a-knot boundary conditions is a sensible choice.  In python, scipy.interpolate.make_interp_spline(x, y, 2) produces such a spline whose knots are the same as the k' grid values in gam2_is_wccs.dat.
 
-    If the magnetic field spectral density B between grid points k'_1 and k'_2 has the spline representation
+    If the magnetic field spectral density B between grid points k'_lb and k'_ub has the spline representation
         B = Bsp0 + Bsp1*k' + Bsp2*(k')^2
-    then the contribution to the nonlinear growth rate at some grid point k=k_eval from the region of wavenumber space k'_1 -> k'_2 is
-        Bsp0*gam2_is(k_eval, k'_1, 0) + Bsp1*gam2_is(k_eval, k'_1, 1) + Bsp2*gam2_is(k_eval, k'_1, 2)
-    where it has been assumed that the knots of the spline of B are the same as the k' grid values of gam2_is.
+    then the contribution to the nonlinear growth rate at some grid point k=k_eval from the region of wavenumber space k'_lb -> k'_ub is
+        Bsp0*gam2_is_wccs(k_eval, k'_lb, 0) + Bsp1*gam2_is_wccs(k_eval, k'_lb, 1) + Bsp2*gam2_is_wccs(k_eval, k'_lb, 2)
+    where it has been assumed that the knots of the spline of B are the same as the k' grid values of gam2_is_wccs.
 
 
 Re-use:

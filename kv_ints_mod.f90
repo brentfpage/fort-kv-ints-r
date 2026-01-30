@@ -49,7 +49,7 @@
 !  ,+ 
 ! Λ    has been calculated in main.f90 and is 
 !  ₁K₊
-! provided as the argument disp_deriv_ik to the subroutine gam2_is_for_ik2 below.
+! provided as the argument disp_deriv_ik to the subroutine gam2_is_wccs_for_ik below.
 ! the variables k and ω from www.github.com/brentfpage/fort-kv-ints-r/blob/main/preprint.pdf are referred to in this program as k₁ and ω₁, while the variables k' and ω' from that writeup are referred to as k₂ and ω₂.
 
 module kv_ints_mod
@@ -81,158 +81,61 @@ module kv_ints_mod
 
   contains
 
-  ! Computer algebra software has been used to expand the integral described in the module header into many sub-integrals, the
-  ! parameters of which are collected in all_int_params.  The wavenumber and parallel velocity part of every sub-integral has the
-  ! same general form and is computed by the function t123_int_driver.  For a given k₂ interval k₂=klb->kub , the function below
-  ! loops over the parallel velocity grid and for each relevant interval calls t123_int_driver.  Then, for each given parallel
-  ! velocity interval, sum_gam2_over_ints_and_vperp is called, which loops over the list of integrals in all_int_params as well as
-  ! over perpendicular velocity and at each loop iteration increments the result for the complete integral, gam2_is_ik_ik2.
-
-  ! om1 : ω₁
-  ! k1 : k₁
-  ! v_int_lam1_diff : include some helper integrals relevant for all k₂ that are done in main.f90
-  ! remaining arguments are described in the module header
-
-  function gam2_is_for_ik2(om1, k1, splcoeff4, om2splcoeffs, all_int_params, &
-    klb,kub,spank1,v_int_lam1_diff,disp_deriv_ik) result(gam2_is_ik_ik2)
-    implicit none
-    type(mp_real) :: om1, k1
-    type(mp_real), dimension(:,:,:,:,:) :: splcoeff4
-    type(mp_real), dimension(:) :: om2splcoeffs
-    integer, dimension(:,:) :: all_int_params
-    type(mp_complex), dimension(0:2) :: gam2_is_ik_ik2
-    type(mp_complex), dimension(0:ubound(gam2_is_ik_ik2,1)) :: gam2_is_ik_ik2_ipara
-
-    type(mp_real) :: klb, kub
-    real :: disp_deriv_ik
-    type(mp_complex), dimension(0:,0:,:,:), intent(in) :: v_int_lam1_diff
-    logical :: spank1
-
-    type(mp_real) :: vlb, vub
-    integer :: iarb, ipara, iperp
-    integer, dimension(:), allocatable :: vres_idxs
-    integer :: iv, i_int
-    type(mp_complex), dimension(3) :: kroots
-
-    type(mp_real), allocatable, dimension(:,:) :: Ivpe
-    type(mp_complex), allocatable, dimension(:,:,:,:,:,:,:) :: t123_int ! stores integrals over k₂ and v_parallel
-    type(mp_real), dimension(3) :: pfdsplcoeffs
-    type(mp_real) :: mppic
-
-    integer :: k_pow
-    type(mp_real) :: to_mult
-    integer :: sigma_max, q_maxx
-
-    type(mp_complex), allocatable, dimension(:,:,:,:,:,:) :: int_kq_roots_diff
-
-    if(spank1) then
-      sigma_max = sigma_max_spank1
-      q_maxx = q_maxx_spank1
-    else
-      sigma_max = sigma_max_standard
-      q_maxx = q_maxx_standard
-    endif
-
-    allocate(int_kq_roots_diff(q_minn:q_maxx,0:n_max+lam3_max,0:sigma_max,0:sigma_max,0:kv_root_lam_max,0:kv_root_lam_max-1))
-    allocate(Ivpe(0:vperp_pow_max,nperp_max))
-
-    mppic = mppi(kv_nwds)
-
-    kroots = mpcmplx((0.0,0.0),kv_nwds)
-    kroots(1) = k1
-
-    pfdsplcoeffs = compute_pfdsplcoeffs(om2splcoeffs, k1, om1, spank1)
-    kroots(2:3) = compute_pfd_kroots(pfdsplcoeffs, spank1)
-
-    int_kq_roots_diff = mpcmplx((0.0,0.0),kv_nwds)
-
-    int_kq_roots_diff(:,:,:,:,0,0) = integrate_over_v_independent_k_roots(kroots,klb,kub,spank1)
-
-    gam2_is_ik_ik2 = mpcmplx((0.0,0.0),kv_nwds)
-    do iarb=1,narb
-      do iperp=1,nperp(iarb)
-        do i_int=0,vperp_pow_max
-          Ivpe(i_int,iperp) = mpreald(vperp(iperp,iarb),kv_nwds)**(i_int+1)/(i_int+1)
-        enddo
-      enddo
-
-  ! only parallel velocity intervals that include a resonance for the given k₂ interval yield a non-zero contribution to the integral in the module header.  the subroutine is_resonant_vec finds these parallel velocity intervals
-      vres_idxs = is_resonant_vec(om2splcoeffs,om1,k1,klb,kub,vpara(:npara(iarb),iarb))
-
-      do iv=1,size(vres_idxs)
-        ipara = vres_idxs(iv)
-
-        vlb=mpreald(vpara(ipara,iarb),kv_nwds)
-        vub=mpreald(vpara(ipara+1,iarb),kv_nwds)
-
-        t123_int = t123_int_driver(kub,klb,kroots,int_kq_roots_diff,&
-          v_int_lam1_diff(:,:,ipara,iarb),vlb,vub,k1,om1,om2splcoeffs,&
-          pfdsplcoeffs,spank1)
-
-        gam2_is_ik_ik2_ipara = sum_gam2_over_ints_and_vperp(om1,k1, splcoeff4(ipara,:,:,:,iarb),om2splcoeffs,&
-          all_int_params,Ivpe, t123_int,iarb)
-        do k_pow=0,2
-          gam2_is_ik_ik2(k_pow) = gam2_is_ik_ik2(k_pow) + gam2_is_ik_ik2_ipara(k_pow)
-        enddo
-      enddo
-    enddo
-
-    to_mult = mppic / mpreald(delta**2 * disp_deriv_ik,kv_nwds)
-    do k_pow=0,2
-      gam2_is_ik_ik2(k_pow) = gam2_is_ik_ik2(k_pow) * to_mult 
-    enddo
-
-    deallocate(int_kq_roots_diff, t123_int,Ivpe)
-  end function gam2_is_for_ik2
-
   ! compute the spline coefficients of h(k₂) = k₂*ω₁ - k₁*ω₂ + k₁ - k₂, which is introduced by application of partial fraction
   ! decomposition operations w.r.t v_parallel to the integral described in the header of t123_int_driver. Here,
   ! ω₂ = om2splcoeffs(1) + om2splcoeffs(2) * k₂ + om2splcoeffs(3) * pow(k₂, 2).
   ! If the k integral bounds span k1, i.e., klb < k1 < kub, then k1 is a root of h(k₂) .
   ! In this case, (k₂ - k₁) gets factored out of h(k₂) .
-  function compute_pfdsplcoeffs(om2splcoeffs, k1, om1, spank1) result(pfdsplcoeffs)
+  function compute_pfdsplcoeffs_nk(om2splcoeffs_nk, k1, om1, spank1_ik2) result(pfdsplcoeffs_nk)
     implicit none
-    type(mp_real), dimension(:), intent(in) :: om2splcoeffs
-    type(mp_real), dimension(3) :: pfdsplcoeffs
+    type(mp_real), dimension(:,:), intent(in) :: om2splcoeffs_nk
+    type(mp_real), dimension(3,size(om2splcoeffs_nk,2)) :: pfdsplcoeffs_nk
     type(mp_real), intent(in) :: k1, om1
-    logical :: spank1
+    integer :: spank1_ik2
 
-    integer :: ip
+    integer :: ip, ik2
 
-    if (spank1) then
-      pfdsplcoeffs(1) = om1 - k1*om2splcoeffs(2)-k1**2*om2splcoeffs(3) - 1.0 ! k^0 term
-      pfdsplcoeffs(2) = -k1*om2splcoeffs(3) ! k^1 term
-      pfdsplcoeffs(3) = mpreal(0.0,kv_nwds)
-    else
-      do ip=1,size(pfdsplcoeffs)
-        pfdsplcoeffs(ip) = -k1*om2splcoeffs(ip)
-      enddo
-      pfdsplcoeffs(2) = pfdsplcoeffs(2) + om1 - 1.0
-      pfdsplcoeffs(1) = pfdsplcoeffs(1) + k1
-    endif
-  end function compute_pfdsplcoeffs
-
-  function compute_pfd_kroots(pfdsplcoeffs, spank1) result(kroots)
-    implicit none
-    type(mp_real), dimension(:), intent(in) :: pfdsplcoeffs
-    type(mp_complex), dimension(2) :: kroots
-    type(mp_real) :: sqrt_arg
-    logical :: spank1
-    if(spank1) then
-      kroots(1) = -pfdsplcoeffs(1)/pfdsplcoeffs(2)
-      kroots(2) = mpreal(0.0,kv_nwds) ! second pfd root is k1
-    else
-      sqrt_arg = pfdsplcoeffs(2)**2-4.0*pfdsplcoeffs(3)*pfdsplcoeffs(1)
-      if(sqrt_arg.ge.0.0) then
-        kroots(1) =  (-pfdsplcoeffs(2)+sqrt(sqrt_arg)) / (2.0 * pfdsplcoeffs(3)) 
-        kroots(2) =  (-pfdsplcoeffs(2)-sqrt(sqrt_arg)) / (2.0 * pfdsplcoeffs(3))
+    do ik2=1,size(om2splcoeffs_nk,2)-2
+      if (ik2.eq.spank1_ik2) then
+        pfdsplcoeffs_nk(1, ik2) = om1 - k1*om2splcoeffs_nk(2, ik2)-k1**2*om2splcoeffs_nk(3, ik2) - 1.0 ! k^0 term
+        pfdsplcoeffs_nk(2, ik2) = -k1*om2splcoeffs_nk(3, ik2) ! k^1 term
+        pfdsplcoeffs_nk(3, ik2) = mpreal(0.0,kv_nwds)
       else
-        sqrt_arg = -sqrt_arg
-        kroots(1) =  (-pfdsplcoeffs(2)+sqrt(sqrt_arg)*mpcmplx(i,kv_nwds)) / (2.0 * pfdsplcoeffs(3)) 
-        kroots(2) =  (-pfdsplcoeffs(2)-sqrt(sqrt_arg)*mpcmplx(i,kv_nwds)) / (2.0 * pfdsplcoeffs(3))
+        do ip=1,size(pfdsplcoeffs_nk,1)
+          pfdsplcoeffs_nk(ip, ik2) = -k1*om2splcoeffs_nk(ip, ik2)
+        enddo
+        pfdsplcoeffs_nk(2, ik2) = pfdsplcoeffs_nk(2, ik2) + om1 - 1.0
+        pfdsplcoeffs_nk(1, ik2) = pfdsplcoeffs_nk(1, ik2) + k1
       endif
-    endif
-  end function compute_pfd_kroots
+    enddo
+  end function compute_pfdsplcoeffs_nk
+
+  function compute_pfd_kroots_nk(pfdsplcoeffs_nk, spank1_ik2) result(kroots_nk)
+    implicit none
+    type(mp_real), dimension(:,:), intent(in) :: pfdsplcoeffs_nk
+    type(mp_complex), dimension(2,size(pfdsplcoeffs_nk,2)) :: kroots_nk
+    type(mp_real) :: sqrt_arg
+    integer :: ik2
+    integer :: spank1_ik2
+    do ik2=1,size(pfdsplcoeffs_nk,2)-2
+
+      if(ik2.eq.spank1_ik2) then
+        kroots_nk(1, ik2) = -pfdsplcoeffs_nk(1, ik2)/pfdsplcoeffs_nk(2, ik2)
+        kroots_nk(2, ik2) = mpreal(0.0,kv_nwds) ! second pfd root is k1
+      else
+        sqrt_arg = pfdsplcoeffs_nk(2, ik2)**2-4.0*pfdsplcoeffs_nk(3, ik2)*pfdsplcoeffs_nk(1, ik2)
+        if(sqrt_arg.ge.0.0) then
+          kroots_nk(1, ik2) =  (-pfdsplcoeffs_nk(2, ik2)+sqrt(sqrt_arg)) / (2.0 * pfdsplcoeffs_nk(3, ik2)) 
+          kroots_nk(2, ik2) =  (-pfdsplcoeffs_nk(2, ik2)-sqrt(sqrt_arg)) / (2.0 * pfdsplcoeffs_nk(3, ik2))
+        else
+          sqrt_arg = -sqrt_arg
+          kroots_nk(1, ik2) =  (-pfdsplcoeffs_nk(2, ik2)+sqrt(sqrt_arg)*mpcmplx(i,kv_nwds)) / (2.0 * pfdsplcoeffs_nk(3, ik2)) 
+          kroots_nk(2, ik2) =  (-pfdsplcoeffs_nk(2, ik2)-sqrt(sqrt_arg)*mpcmplx(i,kv_nwds)) / (2.0 * pfdsplcoeffs_nk(3, ik2))
+        endif
+      endif
+    enddo
+  end function compute_pfd_kroots_nk
+
 
   ! drive computation of int_kq_roots_diff(q,p₁,p₂,p₃) = 
   !              q
@@ -305,8 +208,8 @@ module kv_ints_mod
   ! t₃ = ω₁–ω₂ - v(k₁-k₂) + i*eps
   ! Further, ₘk = kroots(m)
 
-  function t123_int_driver(kub,klb,kroots,int_kq_roots_diff,&
-    v_int_lam1_diff,vlb,vub,k1,om1,om2splcoeffs,pfdsplcoeffs,spank1) result(t123_int)
+  function t123_int_driver(klb,kub,kroots,int_kq_roots_diff,&
+    v_int_lam1_diff,vlb,vub,k1,om1,om2splcoeffs,pfdsplcoeffs,spank1,t2_is_res,t3_is_res) result(t123_int)
     implicit none
     type(mp_complex), dimension(:) :: kroots
     type(mp_complex), dimension(q_minn:,0:,0:,0:,0:,0:) :: int_kq_roots_diff
@@ -314,7 +217,7 @@ module kv_ints_mod
     type(mp_complex), dimension(:,:,:,:,:,:,:), allocatable :: t123_int
     type(mp_real) :: k1, om1, kub, klb, vlb, vub
     type(mp_real), dimension(:) :: om2splcoeffs,pfdsplcoeffs
-    logical :: spank1
+    logical :: spank1, t2_is_res, t3_is_res
 
     integer :: lam1, lam2, lam3, qq, ip, tau, sig, n
 
@@ -340,20 +243,24 @@ module kv_ints_mod
       v_int_lam1_diff, spank1)
 
     ! does the integral in the function header for (λ₁=0, λ₂=0, λ₃>=1)
-    t123_int(:,:,:,0,0,0,1:) = reshape(flatsubtract(&
-      indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vub,k1,om1,om2splcoeffs,.true.,spank1,lam3_max),&
-      indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vlb,k1,om1,om2splcoeffs,.true.,spank1,lam3_max),&
-      size(t123_int(:,:,:,0,0,0,1:))),&
-      shape(t123_int(:,:,:,0,0,0,1:)))
-    call increment_n(t123_int(:,:,:,:,0,0,:),k1,om1,om2splcoeffs,spank1,.true.)
+    if(t3_is_res) then
+      t123_int(:,:,:,0,0,0,1:) = reshape(flatsubtract(&
+        indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vub,k1,om1,om2splcoeffs,.true.,spank1,lam3_max),&
+        indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vlb,k1,om1,om2splcoeffs,.true.,spank1,lam3_max),&
+        size(t123_int(:,:,:,0,0,0,1:))),&
+        shape(t123_int(:,:,:,0,0,0,1:)))
+      call increment_n(t123_int(:,:,:,:,0,0,:),k1,om1,om2splcoeffs,spank1,.true.)
+    endif
 
   ! does the integral in the function header for (λ₁=0, λ₂>=1, λ₃=0)
-    t123_int(:,:,:,0,0,1:,0) = reshape(flatsubtract(&
-      indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vub,k1,om1,om2splcoeffs,.false.,spank1,lam2_max),&
-      indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vlb,k1,om1,om2splcoeffs,.false.,spank1,lam2_max),&
-      size(t123_int(:,:,:,0,0,1:,0))),&
-      shape(t123_int(:,:,:,0,0,1:,0)))
-    call increment_n(t123_int(:,:,:,:,0,:,0),k1,om1,om2splcoeffs,spank1,.false.)
+    if(t2_is_res) then
+      t123_int(:,:,:,0,0,1:,0) = reshape(flatsubtract(&
+        indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vub,k1,om1,om2splcoeffs,.false.,spank1,lam2_max),&
+        indef_t23_int_driver(klb,kub,int_kq_roots_diff,kroots,vlb,k1,om1,om2splcoeffs,.false.,spank1,lam2_max),&
+        size(t123_int(:,:,:,0,0,1:,0))),&
+        shape(t123_int(:,:,:,0,0,1:,0)))
+      call increment_n(t123_int(:,:,:,:,0,:,0),k1,om1,om2splcoeffs,spank1,.false.)
+    endif
 
     t13_lam1_max = 4
     t13_lam3_max = 2
@@ -621,7 +528,7 @@ module kv_ints_mod
   !          ᵐ⁼¹
   ! have been pre-computed in int_kq_roots_diff(q,p1,p2,p3,0,0)
   function indef_t23_int_driver(klb,kub,int_kq_roots_diff,&
-    kroots_in,vb,k1,om1,om2splcoeffs,t3,spank1,lam23_max) result(t_int_at_vb)
+    kroots_in,vb,k1,om1,om2splcoeffs,t3,spank1,lam_2or3_max) result(t_int_at_vb)
     implicit none
     type(mp_real), dimension(:), intent(in) :: om2splcoeffs
     type(mp_complex), dimension(:), intent(in) :: kroots_in
@@ -630,7 +537,7 @@ module kv_ints_mod
     type(mp_complex), dimension(q_minn:ubound(int_kq_roots_diff,1),&
                                 0:ubound(int_kq_roots_diff,2),&
                                 0:ubound(int_kq_roots_diff,3),&
-                                1:lam23_max) :: t_int_at_vb
+                                1:lam_2or3_max) :: t_int_at_vb
     type(mp_real) :: vb, k1, klb, kub, om1
     type(mp_complex), dimension(&
         & q_minn:ubound(int_kq_roots_diff,1), &
@@ -644,7 +551,7 @@ module kv_ints_mod
     type(mp_complex), dimension(size(om2splcoeffs)) :: tsplcoeffs
     type(mp_complex), dimension(size(om2splcoeffs)-1) :: t_kroots
     type(mp_complex), dimension(1 + size(kroots) + size(t_kroots)) :: kroots_full
-    integer :: lam23_max
+    integer :: lam_2or3_max
 
     t_int_at_vb = mpcmplx(cmplx(0.0,0.0),kv_nwds)
 
@@ -659,7 +566,7 @@ module kv_ints_mod
 
     call finish_integrals_over_k_roots(int_kq_roots_diff,klb,kub,kroots_full,size(kroots)+2,t3,spank1)
 
-    t_int_at_vb(:,:,:,2:) = int_kq_roots_2_t_int_lam_gt1(int_kq_roots_diff, k1, tsplcoeffs, lam23_max, spank1, t3)
+    t_int_at_vb(:,:,:,2:) = int_kq_roots_2_t_int_lam_gt1(int_kq_roots_diff, k1, tsplcoeffs, lam_2or3_max, spank1, t3)
 
     int_rational_ln_k_k0_diff = compute_int_rational_ln_k_k0_diff(klb,kub,int_kq_roots_diff,&
       kroots_full(:size(kroots)+1),t_kroots,t3,spank1)
@@ -776,19 +683,19 @@ module kv_ints_mod
   end subroutine finish_integrals_over_k_roots
 
   ! converts values of int_kq_roots_diff to values of t_int_at_vb(...,lam) for lam>1 
-  function int_kq_roots_2_t_int_lam_gt1(int_kq_roots_diff, k1, tsplcoeffs, lam23_max, spank1, t3) result(t_int_at_vb)
+  function int_kq_roots_2_t_int_lam_gt1(int_kq_roots_diff, k1, tsplcoeffs, lam_2or3_max, spank1, t3) result(t_int_at_vb)
     implicit none
     type(mp_complex), dimension(q_minn:,0:,0:,0:,0:,0:), intent(in) :: int_kq_roots_diff
     type(mp_complex), dimension(&
       & q_minn:ubound(int_kq_roots_diff,1),&
       & 0:ubound(int_kq_roots_diff,2),&
       & 0:ubound(int_kq_roots_diff,3),&
-      & 2:lam23_max&
+      & 2:lam_2or3_max&
       ) :: t_int_at_vb ! dims: q, k1_root_pow, other_roots_pow, n
     type(mp_real) :: k1
     type(mp_complex), dimension(:) :: tsplcoeffs
     logical :: spank1, t3
-    integer :: lam23_max
+    integer :: lam_2or3_max
 
     integer :: q, sig, tau, lam, lam_prime, lamlam
     real :: fact
@@ -1191,8 +1098,8 @@ module kv_ints_mod
   end subroutine increment_n
 
   ! with the integral described in the header of t123_int_driver having been computed and stored in t123_int, as well as elementary
-  ! perpendicular velocity integrals having been computed and stored in Ivpe, sum_gam2_over_ints_and_vperp computes the full integral described in the module header.
-  ! specifically, sum_gam2_over_ints_and_vperp sums a list of sub-integrals whose parameters are stored in all_int_params and that all can be computed easily given results for t123_int and Ivpe.
+  ! perpendicular velocity integrals having been computed and stored in Ivpe, sum_gam2_is_wccs_over_ints_and_vperp computes the full integral described in the module header.
+  ! specifically, sum_gam2_is_wccs_over_ints_and_vperp sums a list of sub-integrals whose parameters are stored in all_int_params and that all can be computed easily given results for t123_int and Ivpe.
 
   ! in terms of the column labels
   ! [a,b,g,f,α,β,γ,q,m,n,--,λ₁,λ₂,λ₃,X]
@@ -1209,15 +1116,15 @@ module kv_ints_mod
   !    ||  ⟂    i=0 j=0                                      ||  ⟂
   ! where the indices ipara and iperp depend on what grid intervals the evaluation points v   and v  lie in.  
   !                                                                                        ||      ⟂
-  function sum_gam2_over_ints_and_vperp(om1, k1, splcoeff4, om2splcoeffs,&
-      all_int_params, Ivpe, t123_int,iarb) result(gam2_is_ik_ik2_ipara)
+  function sum_gam2_is_wccs_over_ints_and_vperp(om1, k1, splcoeff4, om2splcoeffs,&
+      all_int_params, Ivpe, t123_int,iarb) result(gam2_is_wccs_ik_ik2_ipara)
     implicit none
     type(mp_real) :: om1, k1
     type(mp_real), dimension(:,:,:) :: splcoeff4
     type(mp_real), dimension(:) :: om2splcoeffs
     integer, dimension(:,:) :: all_int_params
     type(mp_real), dimension(0:,:) :: Ivpe
-    type(mp_complex), dimension(0:2) :: gam2_is_ik_ik2_ipara
+    type(mp_complex), dimension(0:2) :: gam2_is_wccs_ik_ik2_ipara
     type(mp_complex), dimension(q_minn:,0:,0:,0:,0:,0:,0:) :: t123_int
     integer :: iarb
 
@@ -1227,38 +1134,38 @@ module kv_ints_mod
     type(mp_complex), dimension(0:2) :: new_sum
     integer, dimension(15) :: int_params
     integer :: k_pow
+    type(mp_real) :: new_sum2
     type(mp_complex) :: to_mult
     real :: fact
     external :: fact
 
     i_int_max = size(all_int_params,1)
-    gam2_is_ik_ik2_ipara = mpcmplx((0.0,0.0),kv_nwds)
+    gam2_is_wccs_ik_ik2_ipara = mpcmplx((0.0,0.0),kv_nwds)
     do i_int=1,i_int_max
       new_sum = mpcmplx((0.0,0.0),kv_nwds)
       int_params = all_int_params(i_int,:)
 
-      do q_int=int_params(1),f_spl_degr-1
-        do p_int=int_params(2),f_spl_degr-1
+      do p_int=int_params(2),f_spl_degr-1
+        new_sum2 = mpreal(0.0,kv_nwds)
+        do q_int=int_params(1),f_spl_degr-1
           vperp_pow = (2+q_int-int_params(1) + int_params(9))
-
           do iperp=1,nperp(iarb)-1  
-            to_mult = &
+            new_sum2 = new_sum2 + &
               splcoeff4(iperp,f_spl_degr-p_int,f_spl_degr-q_int)*&
               (Ivpe(vperp_pow,iperp+1)-Ivpe(vperp_pow,iperp))*&
                     (nint(fact(q_int)/fact(q_int-int_params(1)))*&
                     nint(fact(p_int)/fact(p_int-int_params(2))))
-                    
-              do k_pow=0,2
-                new_sum(k_pow) = new_sum(k_pow) + to_mult *&
-                    t123_int(int_params(8) + k_pow - int_params(13),&
-                            int_params(14),&
-                            0,&
-                            p_int-int_params(2)+int_params(10),&
-                            int_params(12),&
-                            int_params(13),&
-                            int_params(14)+int_params(11))
-              enddo
           enddo
+        enddo
+        do k_pow=0,2
+          new_sum(k_pow) = new_sum(k_pow) + new_sum2 *&
+              t123_int(int_params(8) + k_pow - int_params(13),&
+                      int_params(14),&
+                      0,&
+                      p_int-int_params(2)+int_params(10),&
+                      int_params(12),&
+                      int_params(13),&
+                      int_params(14)+int_params(11))
         enddo
       enddo
                               
@@ -1267,10 +1174,75 @@ module kv_ints_mod
         om2splcoeffs(2)**int_params(6)*&
         om2splcoeffs(3)**int_params(7)
       do k_pow=0,2
-        gam2_is_ik_ik2_ipara(k_pow) = gam2_is_ik_ik2_ipara(k_pow) - new_sum(k_pow) * to_mult
+        gam2_is_wccs_ik_ik2_ipara(k_pow) = gam2_is_wccs_ik_ik2_ipara(k_pow) - new_sum(k_pow) * to_mult
       enddo
     enddo
-  end function sum_gam2_over_ints_and_vperp
+  end function sum_gam2_is_wccs_over_ints_and_vperp
+
+  function eval_om2(om2splcoeffs, k) result(om2_eval)
+    implicit none
+    type(mp_real) :: om2_eval, k
+    type(mp_real), dimension(3) :: om2splcoeffs
+    om2_eval = om2splcoeffs(1) + om2splcoeffs(2)*k + om2splcoeffs(3)*k**2
+  end function eval_om2
+
+! compute the resonant velocity for the t2 denominator for a given value of k2
+  function t2_res_vel_at_k(om2splcoeffs, om1, k1, k)
+    implicit none
+    type(mp_real) :: om2_eval, k, om1, k1
+    type(mp_real), dimension(3) :: om2splcoeffs
+    type(mp_real) :: t2_res_vel_at_k
+    om2_eval = eval_om2(om2splcoeffs, k)
+    t2_res_vel_at_k = -(1-om2_eval)/k
+  end function t2_res_vel_at_k
+
+! compute the resonant velocity for the t3 denominator for a given value of k2
+  function t3_res_vel_at_k(om2splcoeffs, om1, k1, k2)
+    implicit none
+    type(mp_real) :: om2_eval, k2, om1, k1
+    type(mp_real), dimension(3) :: om2splcoeffs
+    type(mp_real) :: t3_res_vel_at_k
+    om2_eval = eval_om2(om2splcoeffs, k2)
+    t3_res_vel_at_k = (om1-om2_eval)/(k1-k2)
+  end function t3_res_vel_at_k
+
+! determine the values of k2 at which the resonant velocities for the t2 denominator reach a min or max
+  function t2_k2_args_vres_extrema(om2splcoeffs, om1, k1) result(k2_vres_extrema_args)
+    implicit none
+    type(mp_real), dimension(3) :: om2splcoeffs
+    type(mp_real) :: om1, k1
+    type(mp_real), allocatable, dimension(:) :: k2_vres_extrema_args
+    type(mp_real) :: k2_vres_helper
+    k2_vres_helper = (om2splcoeffs(1) - 1)/om2splcoeffs(3)
+    if((k2_vres_helper).gt.0.0) then
+      k2_vres_extrema_args = &
+        [&
+        k1+1.0/om2splcoeffs(3)*sqrt(k2_vres_helper),&
+        k1-1.0/om2splcoeffs(3)*sqrt(k2_vres_helper)&
+        ]
+    else
+      allocate(k2_vres_extrema_args(0))
+    endif
+  end function t2_k2_args_vres_extrema
+
+! determine the values of k2 at which the resonant velocities for the t3 denominator reach a min or max
+  function t3_k2_args_vres_extrema(om2splcoeffs, om1, k1) result(k2_vres_extrema_args)
+    implicit none
+    type(mp_real), dimension(3) :: om2splcoeffs
+    type(mp_real) :: om1, k1
+    type(mp_real), allocatable, dimension(:) :: k2_vres_extrema_args
+    type(mp_real) :: k2_vres_helper
+    k2_vres_helper = om2splcoeffs(3)**2*k1**2 - om2splcoeffs(3)*(om1-om2splcoeffs(1)-k1*om2splcoeffs(2))
+    if((k2_vres_helper).gt.0.0) then
+      k2_vres_extrema_args = &
+        [&
+        sqrt(k2_vres_helper),&
+        -sqrt(k2_vres_helper)&
+        ]
+    else
+      allocate(k2_vres_extrema_args(0))
+    endif
+  end function t3_k2_args_vres_extrema
 
   ! determine which of the denominator terms
   ! t₁ = ω₁ - v*k₁ - 1 + i*eps
@@ -1279,65 +1251,45 @@ module kv_ints_mod
   ! pass through t = i*eps for the given k integral bounds klb->kub and for each of the intervals on the velocity grid.
 
   ! vres_idxs : intervals of the velocity grid for which t₁, t₂, or t₃ pass through t = i*eps
-  function is_resonant_vec(om2splcoeffs, om1, k1, klb, kub, vels) result(vres_idxs_out)
+  function is_resonant_npara(om2splcoeffs, om1, k1, klb, kub, vels) result(vres_idxs_out)
       implicit none
       type(mp_real) :: t1_res_vel, t2_min_res_vel, t2_max_res_vel, t3_min_res_vel, t3_max_res_vel
-      type(mp_real), dimension(:) :: om2splcoeffs
+      type(mp_real), dimension(3) :: om2splcoeffs
 
-      type(mp_real) :: ca, cb, cc, om1, k1, klb, kub, vlb, vub, om2_eval, om2_eval_kub, om2_eval_klb
-      type(mp_real) :: t3_res_vel_eval, t2_res_vel_eval
-      type(mp_real) :: k2_vres_helper
-      type(mp_real), dimension(2) :: k2_vres_extrema_args
+      type(mp_real) :: om1, k1, klb, kub, vlb, vub
       logical :: t1_resonant, t2_resonant, t3_resonant, spank1
       real, dimension(:) :: vels
-      integer, dimension(npara_max) :: vres_idxs
-      integer, dimension(:), allocatable :: vres_idxs_out
-      integer :: ik, iv, n_vres
+      integer, dimension(npara_max,4) :: vres_idxs
+      integer, dimension(:,:), allocatable :: vres_idxs_out
+      integer :: ipara, n_vres
+      type(mp_real), dimension(2) :: min_max
+      procedure (t2_res_vel_at_k), pointer :: eval_res_vel_at_k
+      procedure (t2_k2_args_vres_extrema), pointer :: eval_k2_args_vres_extrema
 
       spank1 = (klb.lt.k1).and.(kub.gt.k1)
 
-      ca = om2splcoeffs(1)
-      cb = om2splcoeffs(2)
-      cc = om2splcoeffs(3)
-      om2_eval_klb = ca+cb*klb+cc*klb**2
-      om2_eval_kub = ca+cb*kub+cc*kub**2
-
       t1_res_vel = (om1-1)/k1
-      t2_min_res_vel = min(-(1-om2_eval_klb)/klb,-(1-om2_eval_kub)/kub)
-      t2_max_res_vel = max(-(1-om2_eval_klb)/klb,-(1-om2_eval_kub)/kub)
 
-      t3_min_res_vel = min((om1-om2_eval_klb)/(k1-klb),(om1-om2_eval_kub)/(k1-kub))
-      t3_max_res_vel = max((om1-om2_eval_klb)/(k1-klb),(om1-om2_eval_kub)/(k1-kub))
-      k2_vres_helper = cc**2*k1**2-cc*(om1-ca-k1*cb)
-      if((.not.spank1).and.((k2_vres_helper).gt.0.0)) then
-        k2_vres_extrema_args = [k1+1.0/cc*sqrt(k2_vres_helper), k1-1.0/cc*sqrt(k2_vres_helper)]
-        do ik=1,2
-          if((klb.lt.k2_vres_extrema_args(ik)).and.(kub.gt.k2_vres_extrema_args(ik))) then
-            om2_eval = ca+cb*k2_vres_extrema_args(ik)+cc*k2_vres_extrema_args(ik)**2
-            t3_res_vel_eval = (om1-om2_eval)/(k1-k2_vres_extrema_args(ik))
-            t3_min_res_vel=min(t3_min_res_vel,t3_res_vel_eval)
-            t3_max_res_vel=max(t3_max_res_vel,t3_res_vel_eval)
-          endif
-        enddo
-      endif
+      eval_res_vel_at_k => t2_res_vel_at_k
+      eval_k2_args_vres_extrema => t2_k2_args_vres_extrema
+      min_max = get_t_2or3_min_max_res_vels_for_k2(&
+        om2splcoeffs, om1, k1, klb, kub, .true.,&
+        eval_res_vel_at_k, eval_k2_args_vres_extrema)
+      t2_min_res_vel = min_max(1)
+      t2_max_res_vel = min_max(2)
 
-      k2_vres_helper = (ca-1)/cc
-      if((k2_vres_helper).gt.0.0) then
-        k2_vres_extrema_args = [sqrt(k2_vres_helper), -sqrt(k2_vres_helper)]
-        do ik=1,2
-          if((klb.lt.k2_vres_extrema_args(ik)).and.(kub.gt.k2_vres_extrema_args(ik))) then
-            om2_eval = ca+cb*k2_vres_extrema_args(ik)+cc*k2_vres_extrema_args(ik)**2
-            t2_res_vel_eval = (om2_eval-1)/k2_vres_extrema_args(ik)
-            t2_min_res_vel=min(t2_min_res_vel,t2_res_vel_eval)
-            t2_max_res_vel=max(t2_max_res_vel,t2_res_vel_eval)
-          endif
-        enddo
-      endif
+      eval_res_vel_at_k => t3_res_vel_at_k
+      eval_k2_args_vres_extrema => t3_k2_args_vres_extrema
+      min_max = get_t_2or3_min_max_res_vels_for_k2(&
+        om2splcoeffs, om1, k1, klb, kub, .not.spank1,&
+        eval_res_vel_at_k, eval_k2_args_vres_extrema)
+      t3_min_res_vel = min_max(1)
+      t3_max_res_vel = min_max(2)
 
       n_vres = 0
-      do iv=1,size(vels)-1
-        vlb = mpreald(vels(iv),kv_nwds)
-        vub = mpreald(vels(iv+1),kv_nwds)
+      do ipara=1,size(vels)-1
+        vlb = mpreald(vels(ipara),kv_nwds)
+        vub = mpreald(vels(ipara+1),kv_nwds)
       
         t1_resonant = (vlb<t1_res_vel).neqv.(vub<t1_res_vel)
         t2_resonant = .not.((vub.lt.t2_min_res_vel).or.(vlb.gt.t2_max_res_vel))
@@ -1345,11 +1297,192 @@ module kv_ints_mod
 
         if(t1_resonant.or.t2_resonant.or.t3_resonant) then
           n_vres = n_vres + 1
-          vres_idxs(n_vres) = iv
+          vres_idxs(n_vres,1) = ipara
+          if(t1_resonant) then
+            vres_idxs(n_vres,2) = 1
+          else
+            vres_idxs(n_vres,2) = 0
+          endif
+          if(t2_resonant) then
+            vres_idxs(n_vres,3) = 1
+          else
+            vres_idxs(n_vres,3) = 0
+          endif
+          if(t3_resonant) then
+            vres_idxs(n_vres,4) = 1
+          else
+            vres_idxs(n_vres,4) = 0
+          endif
         endif
+      enddo
+    allocate(vres_idxs_out(n_vres,4))
+    vres_idxs_out(:,:) = vres_idxs(:n_vres,:)
+  end function is_resonant_npara
+
+  function get_t_2or3_min_max_res_vels_for_k2(om2splcoeffs, om1, k1, klb, kub, check_extrema,&
+      eval_res_vel_at_k, eval_k2_args_vres_extrema) result(min_max)
+    implicit none
+    type(mp_real), dimension(3) :: om2splcoeffs
+    type(mp_real) :: om1, k1, klb, kub
+    procedure (t2_res_vel_at_k), pointer :: eval_res_vel_at_k
+    procedure (t2_k2_args_vres_extrema), pointer :: eval_k2_args_vres_extrema
+    type(mp_real) :: min_res_vel, max_res_vel
+    type(mp_real) :: res_vel_extremum
+    type(mp_real), dimension(2) :: min_max
+    integer :: ie
+    logical :: check_extrema
+
+    type(mp_real), allocatable, dimension(:) :: vres_extrema_args
+
+    min_res_vel = min(eval_res_vel_at_k(om2splcoeffs, om1, k1, klb), eval_res_vel_at_k(om2splcoeffs, om1, k1, kub))
+    max_res_vel = max(eval_res_vel_at_k(om2splcoeffs, om1, k1, klb), eval_res_vel_at_k(om2splcoeffs, om1, k1, kub))
+
+    if(check_extrema) then
+      vres_extrema_args = eval_k2_args_vres_extrema(om2splcoeffs, om1, k1)
+
+      do ie=1,size(vres_extrema_args)
+        if((klb.lt.vres_extrema_args(ie)).and.(kub.gt.vres_extrema_args(ie))) then
+          res_vel_extremum = eval_res_vel_at_k(om2splcoeffs, om1, k1, vres_extrema_args(ie))
+          min_res_vel = min(min_res_vel, res_vel_extremum)
+          max_res_vel = min(max_res_vel, res_vel_extremum)
+        endif
+      enddo
+      deallocate(vres_extrema_args)
+    endif
+    min_max = [min_res_vel, max_res_vel]
+  end function get_t_2or3_min_max_res_vels_for_k2
+
+  function is_resonant_npara_nk(om2splcoeffs_nk, om1, k1, kknots, vels) result(vres_idxs_out)
+    implicit none
+    integer, allocatable, dimension(:,:) :: vres_idxs_out
+    type(mp_real), dimension(:,:) :: om2splcoeffs_nk
+    real, dimension(:) :: vels
+    type(mp_real) :: om1, k1
+    integer, dimension(:, :), allocatable :: vres_idxs_for_k2
+    type(mp_real), dimension(:) :: kknots
+    integer, dimension(size(kknots)*size(vels),5) :: vres_idxs
+
+    integer :: ik2,n, idn
+    
+    n=0
+    do ik2=1,size(kknots)-1
+      vres_idxs_for_k2 = is_resonant_npara(om2splcoeffs_nk(:,ik2), om1, k1, kknots(ik2), kknots(ik2+1), vels)
+
+      do idn=1,size(vres_idxs_for_k2,1)
+        vres_idxs(n+idn,1) = ik2
+        vres_idxs(n+idn,2) = vres_idxs_for_k2(idn,1)
+        vres_idxs(n+idn,3:5) = vres_idxs_for_k2(idn,2:4)
+      enddo
+      n = n+size(vres_idxs_for_k2,1)
+      deallocate(vres_idxs_for_k2)
     enddo
-    vres_idxs_out = vres_idxs(:n_vres)
-  end function is_resonant_vec
+
+    allocate(vres_idxs_out(n,5))
+    vres_idxs_out(:,:) = vres_idxs(1:n,:)
+  end function is_resonant_npara_nk
+
+  ! The function below drives computation of the integral in the module header for k₁=krange(ik) as a function of ik2, with
+  ! klb=kknots(ik2) and kub=kknots(ik2+1). Computer algebra software has been used to expand the integral into many sub-integrals, the
+  ! parameters of which are collected in all_int_params.  The wavenumber (k₂) and parallel velocity (vpara) part of every
+  ! sub-integral has the same generic form and is computed by the function t123_int_driver.  For a given k₂ and vpara interval,
+  ! integration over vperp and summation over the sub-integrals is handled by sum_gam2_is_wccs_over_ints_and_vperp.
+
+  ! om1 : ω₁
+  ! k1 : k₁
+  ! v_int_lam1_diff : include some helper integrals relevant for all k₂ that are done in main.f90
+  ! remaining arguments are described in the module header
+  function gam2_is_wccs_for_ik(int_kq_roots_diff, int_kq_roots_diff_spank1, v_int_lam1_diff, Ivpe,&
+      om2splcoeffs_nk, pfdsplcoeffs_nk, splcoeff4, kroots_nk, kknots, vpara, om1, k1, &
+      all_int_params_spank1, all_int_params_standard, spank1_ik2)
+    implicit none
+
+    integer :: ik2, ipara, ii
+    integer :: q_maxx, sigma_max
+    type(mp_complex), dimension(:,:,:,:,:), intent(in) :: int_kq_roots_diff
+    type(mp_complex), dimension(:,:,:,:), intent(in) :: int_kq_roots_diff_spank1
+    type(mp_complex), dimension(:,:,:) :: v_int_lam1_diff
+    type(mp_real), dimension(:,:) :: Ivpe
+    type(mp_complex), dimension(:,:), intent(in) :: kroots_nk
+    type(mp_real), dimension(:,:) :: om2splcoeffs_nk, pfdsplcoeffs_nk
+    type(mp_real), dimension(:,:,:,:,:) :: splcoeff4
+    integer, dimension(:,:), allocatable :: k2_vpara_res_idxs
+    type(mp_real), dimension(:), intent(in) :: kknots
+    real, dimension(:), intent(in) :: vpara
+    type(mp_complex), allocatable, dimension(:,:,:,:,:,:) :: int_kq_roots_diff_ipara
+    type(mp_complex), dimension(size(kknots)-1,0:2) :: gam2_is_wccs_for_ik
+    type(mp_complex), allocatable, dimension(:,:) :: gam2_is_wccs_ik_ik2_ipara
+    type(mp_real) :: vlb, vub, om1, k1
+    type(mp_complex), allocatable, dimension(:,:,:,:,:,:,:) :: t123_int ! stores integrals over k₂ and v_parallel
+    integer, dimension(:,:) :: all_int_params_spank1, all_int_params_standard
+    integer, allocatable, dimension(:,:) :: all_int_params
+    integer :: spank1_ik2
+    integer :: iarb
+
+    iarb=1
+  ! only parallel velocity intervals that include a resonance yield a non-zero contribution to the integral in the module header.
+  ! the subroutine is_resonant_npara_nk finds these intervals.
+    k2_vpara_res_idxs = is_resonant_npara_nk(om2splcoeffs_nk, om1, k1, kknots, vpara)
+    allocate(gam2_is_wccs_ik_ik2_ipara(size(k2_vpara_res_idxs,1),0:2))
+    gam2_is_wccs_ik_ik2_ipara = mpcmplx((0.0,0.0),kv_nwds)
+
+    !$omp parallel do private(ii,ik2,ipara,vlb,vub,t123_int,int_kq_roots_diff_ipara,all_int_params, q_maxx, sigma_max)
+    do ii=1,size(k2_vpara_res_idxs,1)
+      ik2 = k2_vpara_res_idxs(ii,1)
+      ipara = k2_vpara_res_idxs(ii,2)
+
+      vlb=mpreald(vpara(ipara),kv_nwds)
+      vub=mpreald(vpara(ipara+1),kv_nwds)
+
+      if(ik2.eq.spank1_ik2) then
+        q_maxx = q_maxx_spank1
+        sigma_max = sigma_max_spank1
+      else
+        q_maxx = q_maxx_standard
+        sigma_max = sigma_max_standard
+      endif
+
+      allocate(int_kq_roots_diff_ipara(&
+        q_minn:q_maxx,&
+        0:n_max+lam3_max,&
+        0:sigma_max,&
+        0:sigma_max,&
+        0:kv_root_lam_max-1,&
+        0:kv_root_lam_max-1))
+
+      int_kq_roots_diff_ipara = mpcmplx((0.0,0.0),kv_nwds)
+      if(ik2.eq.spank1_ik2) then
+        int_kq_roots_diff_ipara(:,:,:,:,0,0) = int_kq_roots_diff_spank1(:,:,:,:)
+      else
+        int_kq_roots_diff_ipara(:,:,:,:,0,0) = int_kq_roots_diff(ik2,:,:,:,:)
+      endif
+
+      t123_int = t123_int_driver(kknots(ik2),kknots(ik2+1),kroots_nk(:,ik2),int_kq_roots_diff_ipara,&
+        v_int_lam1_diff(:,:,ipara),vlb,vub,k1,om1,om2splcoeffs_nk(:,ik2),pfdsplcoeffs_nk(:,ik2),&
+        ik2.eq.spank1_ik2, k2_vpara_res_idxs(ii,4).eq.1, k2_vpara_res_idxs(ii,5).eq.1&
+        )
+      deallocate(int_kq_roots_diff_ipara)
+
+      if(ik2.eq.spank1_ik2) then
+        all_int_params = all_int_params_spank1
+      else
+        all_int_params = all_int_params_standard
+      endif
+      gam2_is_wccs_ik_ik2_ipara(ii,:) = sum_gam2_is_wccs_over_ints_and_vperp(om1,k1,&
+        splcoeff4(ipara,:,:,:,iarb),om2splcoeffs_nk(:,ik2),all_int_params,Ivpe, t123_int,iarb)
+      deallocate(all_int_params, t123_int)
+    enddo
+    !$omp end parallel do
+    gam2_is_wccs_for_ik = mpcmplx((0.0,0.0),kv_nwds)
+    do ii=1,size(k2_vpara_res_idxs,1)
+      ik2 = k2_vpara_res_idxs(ii,1)
+      gam2_is_wccs_for_ik(ik2,:) = flatadd(&
+        gam2_is_wccs_for_ik(ik2,:),&
+        gam2_is_wccs_ik_ik2_ipara(ii,:),size(gam2_is_wccs_for_ik,2))
+    enddo
+
+    deallocate(gam2_is_wccs_ik_ik2_ipara, k2_vpara_res_idxs)
+  end function gam2_is_wccs_for_ik
+
 
   ! performs the following integrals:
   ! v_int(n,λ) = 
